@@ -1,0 +1,63 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+	<Import Project="$(MSBuildExtensionsPath)\MSBuildCommunityTasks\MSBuild.Community.Tasks.Targets"/>
+	<PropertyGroup>
+		<Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+		<Platform>AnyCPU</Platform>
+		<DefineSolutionProperties>false</DefineSolutionProperties>
+		<!-- General Paths -->
+		<RootPath>$(MSBuildProjectDirectory)</RootPath>
+		<SrcPath>$(RootPath)\src</SrcPath>
+		<BinPathUnitTests>$(SrcPath)\TestProjectComplete\Test</BinPathUnitTests>
+		<NUnit-ToolPath>C:\Program Files (x86)\NUnit 2.6.3\bin</NUnit-ToolPath>
+		<Publish>$(SrcPath)\publish</Publish>
+	</PropertyGroup>
+	<!-- The Clean Target -->
+	<ItemGroup>
+		<Solution Include="${RootPath}\src\TestProjectComplete.sln"/>
+	</ItemGroup>
+	<Target Name="Clean">
+		<Message Importance="high" Text="Cleaning folders"/>
+		<RemoveDir Directories="$(BinPathUnitTests)" />
+		<RemoveDir Directories="$(Publish)" />
+		<!-- Clean the source code projects -->
+		<MSBuild Projects="@(ProjectFiles)"
+		ContinueOnError="false"
+		Targets="Clean"
+		Properties="Configuration=$(Configuration)" />
+	</Target>
+	<!-- The LoadNuGetPackages Target -->
+	<ItemGroup>
+		<NuGetPackageConfigs Include="$(MSBuildStartupDirectory)\**\packages.config" />
+	</ItemGroup>
+	<Target Name="LoadNuGetPackages">
+		<Message Importance="high" Text="Retrieving packages for %(NuGetPackageConfigs.Identity)" />
+		<Exec Command="&quot;$(SrcPath)\.nuget\nuget&quot; install &quot;%(NuGetPackageConfigs.Identity)&quot; -o &quot;$(SrcPath)\packages&quot;" />
+	</Target>
+	<Target Name="Compile" DependsOnTargets="Clean;LoadNuGetPackages">
+		<Message Importance="high" Text="Compiling projects"/>
+		<MakeDir Directories="$(BinPathUnitTests)" />
+		<MakeDir Directories="$(Publish)" />
+		<MSBuild Projects="$(SrcPath)\TestProjectComplete\TestProjectComplete.Common.ConsoleApplication.csproj" Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+		<MSBuild Projects="$(SrcPath)\TestProjectComplete\TestProjectComplete.Service.Rest.csproj" Properties="Configuration=$(Configuration);Platform=$(Platform)" />				
+		<MSBuild Projects="$(SrcPath)\TestProjectComplete\TestProjectComplete.Common.Unit.Test.csproj" Properties="Configuration=$(Configuration);Platform=$(Platform)"  />
+	</Target>
+
+	<!-- Running Test -->
+	<Target Name="NUnit" DependsOnTargets="Clean;LoadNuGetPackages;Compile">
+		<ItemGroup>
+			<TestAssembly Include="$(BinPathUnitTests)\*.test.dll" />
+		</ItemGroup>
+		<Message Text="NUnit is running on: @(TestAssembly)" />
+		<Nunit ToolPath="$(NUnit-ToolPath)" Assemblies="@(TestAssembly)" OutputXmlFile="$(BinPathUnitTests)\test-results.xml"/>
+	</Target>		
+
+	<Target Name="Build" DependsOnTargets="Clean;LoadNuGetPackages;Compile;NUnit;Package" />
+
+	<!-- Packagint... -->
+	<Target Name="Package">
+		<MakeDir Directories="$(Publish)" />
+		<MSBuild Projects="$(SrcPath)\TestProjectComplete\TestProjectComplete.Presentation.Service.Rest.csproj"
+			Properties="Configuration=Debug;WebProjectOutputDir=$(Publish);OutDir=$(Publish)\bin"
+			Targets="ResolveReferences;_CopyWebApplication" />
+	</Target>
+</Project>
